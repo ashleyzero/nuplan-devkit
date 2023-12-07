@@ -120,3 +120,13 @@ py_library(
         "//nuplan/planning/training/preprocessing/features:abstract_model_feature",
     ],
 )
+
+py_library(
+    name = "critical_agent",
+    srcs = ["critical_agent.py"],
+    deps = [
+        "//nuplan/planning/training/preprocessing/features:abstract_model_feature",
+        "//nuplan/planning/training/preprocessing/features:vector_map",
+        "//nuplan/common/actor_state:state_representation",
+    ],
+)

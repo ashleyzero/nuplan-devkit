@@ -56,6 +56,7 @@ simulation_tile_trajectory_style: Dict[str, Any] = {
 simulation_tile_agent_style: Dict[str, Any] = {
     "ego": {"fill_color": "#FFFFFF", "fill_alpha": 1.0, "line_color": "#808080", "line_width": 2},
     "vehicles": {"fill_color": "#84E573", "fill_alpha": 0.5, "line_color": "#84E573", "line_width": 1},
+    "critical_agent": {"fill_color": "#FF7F0E", "fill_alpha": 0.5, "line_color": "#FF7F0E", "line_width": 2},
     "pedestrians": {"fill_color": "#4D83E1", "fill_alpha": 0.5, "line_color": "#4D83E1", "line_width": 1},
     "bicycles": {"fill_color": "#FF4D4D", "fill_alpha": 0.5, "line_color": "#FF4D4D", "line_width": 1},
     "genericobjects": {"fill_color": "#AE4DFF", "fill_alpha": 0.5, "line_color": "#AE4DFF", "line_width": 1},

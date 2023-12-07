@@ -22,6 +22,7 @@ tracked_object_types = {
     'traffic_cone': TrackedObjectType.TRAFFIC_CONE,
     'barrier': TrackedObjectType.BARRIER,
     'czone_sign': TrackedObjectType.CZONE_SIGN,
+    'critical_agent': TrackedObjectType.CRITICAL_AGENT,
 }
 
 

@@ -122,3 +122,41 @@ py_library(
         "//nuplan/common/maps/nuplan_map:utils",
     ],
 )
+
+py_library(
+    name = "anchor_vector_map_feature_builder",
+    srcs = ["anchor_vector_map_feature_builder.py"],
+    deps = [
+        "//nuplan/common/actor_state:state_representation",
+        "//nuplan/common/geometry:torch_geometry",
+        "//nuplan/planning/scenario_builder:abstract_scenario",
+        "//nuplan/planning/simulation/planner:abstract_planner",
+        "//nuplan/planning/training/preprocessing/feature_builders:scriptable_feature_builder",
+        "//nuplan/planning/training/preprocessing/feature_builders:vector_builder_utils",
+        "//nuplan/planning/training/preprocessing/feature_builders:vector_map_feature_builder",
+        "//nuplan/planning/training/preprocessing/features:abstract_model_feature",
+        "//nuplan/planning/training/preprocessing/features:vector_map",
+    ],
+)
+
+py_library(
+    name = "critical_agent_feature_builder",
+    srcs = ["critical_agent_feature_builder.py"],
+    deps = [
+        "//nuplan/common/actor_state:ego_state",
+        "//nuplan/common/actor_state:state_representation",
+        "//nuplan/common/actor_state:tracked_objects",
+        "//nuplan/common/actor_state:tracked_objects_types",
+        "//nuplan/planning/scenario_builder:abstract_scenario",
+        "//nuplan/planning/scenario_builder:scenario_utils",
+        "//nuplan/planning/simulation/observation:observation_type",
+        "//nuplan/planning/simulation/planner:abstract_planner",
+        "//nuplan/planning/simulation/trajectory:trajectory_sampling",
+        "//nuplan/planning/training/preprocessing/feature_builders:scriptable_feature_builder",
+        "//nuplan/planning/training/preprocessing/feature_builders:anchor_vector_map_feature_builder",
+        "//nuplan/planning/training/preprocessing/features:agents",
+        "//nuplan/planning/training/preprocessing/features:critical_agent",
+        "//nuplan/planning/training/preprocessing/features:vector_map",
+        "//nuplan/planning/training/preprocessing/utils:agents_preprocessing",
+    ],
+)

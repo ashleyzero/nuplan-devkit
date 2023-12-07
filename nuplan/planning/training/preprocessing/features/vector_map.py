@@ -75,8 +75,8 @@ class VectorMap(AbstractModelFeature):
                 f"Not consistent length of batches! {len(self.coords)} != {len(self.traffic_light_data)}"
             )
 
-        if len(self.coords) == 0:
-            raise RuntimeError("Batch size has to be > 0!")
+        # if len(self.coords) == 0:
+        #     raise RuntimeError("Batch size has to be > 0!")
 
         for coords in self.coords:
             if coords.shape[1] != 2 or coords.shape[2] != 2:

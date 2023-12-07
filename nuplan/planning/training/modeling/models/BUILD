@@ -84,3 +84,43 @@ py_library(
         requirement_torch("torch"),
     ],
 )
+
+py_library(
+    name = "diffusion_model",
+    srcs = ["diffusion_model.py"],
+    deps = [
+        "//nuplan/planning/training/modeling:torch_module_wrapper",
+        "//nuplan/planning/training/modeling:types",
+        "//nuplan/planning/training/modeling/models:lanegcn_utils",
+        "//nuplan/planning/training/preprocessing/feature_builders:agents_feature_builder",
+        "//nuplan/planning/training/preprocessing/feature_builders:vector_map_feature_builder",
+        "//nuplan/planning/training/preprocessing/features:agents",
+        "//nuplan/planning/training/preprocessing/features:trajectory",
+        "//nuplan/planning/training/preprocessing/features:vector_map",
+        "//nuplan/planning/training/preprocessing/target_builders:ego_trajectory_target_builder",
+
+        "//nuplan/planning/training/preprocessing/feature_builders:critical_agent_feature_builder",
+        "//nuplan/planning/training/preprocessing/target_builders:diffusion_fake_target_builder",
+        "//nuplan/planning/training/preprocessing/features:critical_agent",
+        "//nuplan/planning/training/modeling/models:diffusion_dynamics",
+        "//nuplan/planning/training/modeling/models:diffusion_utils",
+        requirement_torch("torch"),
+    ],
+)
+
+py_library(
+    name = "diffusion_dynamics",
+    srcs = ["diffusion_dynamics.py"],
+    deps = [
+        "//nuplan/planning/training/preprocessing/features:agents",
+        requirement_torch("torch"),
+    ],
+)
+
+py_library(
+    name = "diffusion_utils",
+    srcs = ["diffusion_utils.py"],
+    deps = [
+        requirement_torch("torch"),
+    ],
+)

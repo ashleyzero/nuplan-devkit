@@ -23,3 +23,14 @@ py_library(
         "@nuplan_devkit//nuplan/planning/training/preprocessing/target_builders:abstract_target_builder",
     ],
 )
+
+py_library(
+    name = "fake_trajectory_target_builder",
+    srcs = ["fake_trajectory_target_builder.py"],
+    deps = [
+        "//nuplan/planning/scenario_builder:abstract_scenario",
+        "//nuplan/planning/training/preprocessing/feature_builders:abstract_feature_builder",
+        "//nuplan/planning/training/preprocessing/features:trajectory",
+        "//nuplan/planning/training/preprocessing/target_builders:abstract_target_builder",
+    ],
+)

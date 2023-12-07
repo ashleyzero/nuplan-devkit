@@ -15,6 +15,7 @@ class TrackedObjectType(Enum):
     CZONE_SIGN = 5, 'czone_sign'
     GENERIC_OBJECT = 6, 'generic_object'
     EGO = 7, 'ego'
+    CRITICAL_AGENT = 8, 'critical_agent'
 
     def __int__(self) -> int:
         """

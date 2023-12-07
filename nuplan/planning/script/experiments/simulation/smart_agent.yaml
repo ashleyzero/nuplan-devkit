@@ -1,0 +1,19 @@
+# @package _global_
+job_name: smart_agent
+
+defaults:
+  - override /model: diffusion_model
+  - override /observation: critical_diffusion_agent_observation # critical_diffusion_agent_observation or box_observation
+  - override /ego_controller: log_play_back_controller
+  - override /planner: log_future_planner
+  - override /simulation_metric: simulation_open_loop_boxes
+  - override /metric_aggregator:
+      - open_loop_boxes_weighted_average
+  - override /scenario_filter: one_of_one_scenario_type
+
+# scenario_filter:
+#   limit_total_scenarios: 1
+
+scenario_builder:
+  scenario_mapping:
+    subsample_ratio_override: 0.1

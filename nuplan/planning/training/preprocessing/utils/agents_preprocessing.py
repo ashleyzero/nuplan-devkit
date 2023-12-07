@@ -98,6 +98,42 @@ class EgoInternalIndex:
         """
         return 7
 
+class EgoBoxInternalIndex(EgoInternalIndex):
+    """
+    Add width and length based on EgoInternalIndex.
+
+    It is intended to be used like an IntEnum, but supported by TorchScript
+    """
+
+    def __init__(self) -> None:
+        """
+        Init method.
+        """
+        raise ValueError("This class is not to be instantiated.")
+
+    @staticmethod
+    def width() -> int:
+        """
+        The dimension corresponding to the width of the ego.
+        :return: index
+        """
+        return 7
+
+    @staticmethod
+    def length() -> int:
+        """
+        The dimension corresponding to the length of the ego.
+        :return: index
+        """
+        return 8
+    
+    @staticmethod
+    def dim() -> int:
+        """
+        The number of features present in the EgoInternal buffer.
+        :return: number of features.
+        """
+        return 9
 
 class AgentInternalIndex:
     """
@@ -538,6 +574,56 @@ def convert_absolute_quantities_to_relative(
 
     return agent_states
 
+def convert_absolute_quantities_to_relative_to_anchor_state(
+    agent_states: List[torch.Tensor], anchor_state: torch.Tensor
+) -> List[torch.Tensor]:
+    """
+    Converts the agents' poses and relative velocities from absolute to anchor state-relative coordinates.
+    :param agent_states: The agent states to convert, in the AgentInternalIndex schema.
+    :param anchor_state: The anchor state to convert, in the AgentInternalIndex schema.
+    :return: The converted states, in AgentInternalIndex schema.
+    """
+
+    anchor_pose = torch.tensor(
+        [
+            float(anchor_state[AgentInternalIndex.x()].item()),
+            float(anchor_state[AgentInternalIndex.y()].item()),
+            float(anchor_state[AgentInternalIndex.heading()].item()),
+        ],
+        dtype=torch.float64,
+    )
+
+    anchor_velocity = torch.tensor(
+        [
+            0.0,
+            0.0,
+            float(anchor_state[AgentInternalIndex.heading()].item()),
+        ],
+        dtype=torch.float64,
+    )
+
+    for agent_state in agent_states:
+        _validate_agent_internal_shape(agent_state)
+
+        agent_global_poses = agent_state[
+            :, [AgentInternalIndex.x(), AgentInternalIndex.y(), AgentInternalIndex.heading()]
+        ].double()
+        agent_global_velocities = agent_state[
+            :, [AgentInternalIndex.vx(), AgentInternalIndex.vy(), AgentInternalIndex.heading()]
+        ].double()
+
+        transformed_poses = global_state_se2_tensor_to_local(agent_global_poses, anchor_pose, precision=torch.float64)
+        transformed_velocities = global_state_se2_tensor_to_local(
+            agent_global_velocities, anchor_velocity, precision=torch.float64
+        )
+
+        agent_state[:, AgentInternalIndex.x()] = transformed_poses[:, 0].float()
+        agent_state[:, AgentInternalIndex.y()] = transformed_poses[:, 1].float()
+        agent_state[:, AgentInternalIndex.heading()] = transformed_poses[:, 2].float()
+        agent_state[:, AgentInternalIndex.vx()] = transformed_velocities[:, 0].float()
+        agent_state[:, AgentInternalIndex.vy()] = transformed_velocities[:, 1].float()
+
+    return agent_states
 
 def pad_agent_states(agent_trajectories: List[torch.Tensor], reverse: bool) -> List[torch.Tensor]:
     """
@@ -738,6 +824,84 @@ def filter_agents_tensor(agents: List[torch.Tensor], reverse: bool = False) -> L
 
     return agents
 
+def filter_agents_tensor_appear_in_all_frames(agents: List[torch.Tensor]) -> List[torch.Tensor]:
+    """
+    Filter detections to keep only agents which appear in all frames
+    :param agents: The agents in the scene. A list of [num_frames] tensors, each complying with the AgentInternalIndex schema
+    :return: filtered agents in the same format as the input `agents` parameter
+    """
+    agent_id_to_num_frames_dict: Dict[float, int] = {}
+    for i in range(len(agents)):
+        _validate_agent_internal_shape(agents[i])
+
+        for j in range(agents[i].shape[0]):
+            agent_id: float = float(agents[i][j, int(AgentInternalIndex.track_token())].item())
+            if agent_id not in agent_id_to_num_frames_dict.keys():
+                agent_id_to_num_frames_dict[agent_id] = 0
+            agent_id_to_num_frames_dict[agent_id] += 1
+    target_ids: List[float] = [agent_id for agent_id, num_frames in agent_id_to_num_frames_dict.items() if num_frames == len(agents)]
+    # assert len(target_ids) > 0, f"Expected exist agent which appear in all frames, got {len(target_ids)}, {agent_id_to_num_frames_dict}"
+    if not target_ids:
+        return []
+    for i in range(len(agents)):
+        rows: List[torch.Tensor] = []
+        for j in range(agents[i].shape[0]):
+            agent_id: float = float(agents[i][j, int(AgentInternalIndex.track_token())].item())
+            if agent_id in target_ids:
+                rows.append(agents[i][j, :].squeeze())
+
+        assert len(rows) == len(target_ids), f"Expected frame {i} exist {len(target_ids)} target agents, got {len(rows)}"
+        agents[i] = torch.stack(rows)
+
+    return agents
+
+def select_critical_agent(agent_states: List[torch.Tensor], ego_box_states: torch.Tensor) -> int:
+    """
+    Select the agent closest to the ego as critical agent
+    :param agent_states: The agents in the scene. A list of [num_frames] tensors, each complying with the AgentInternalIndex schema
+    :param ego_box_states: ego states in the scene. Tensors complying with the EgoBoxInternalIndex schema.
+    :return: the row number where the critical obstacle is located.
+    """
+    min_distance_to_ego: List[float] = []
+    for j in range(agent_states[0].shape[0]):
+        min_distance_to_ego.append(min([float(np.hypot(agent_states[i][j, int(AgentInternalIndex.x())] - ego_box_states[i, int(EgoBoxInternalIndex.x())],
+                                                       agent_states[i][j, int(AgentInternalIndex.y())] - ego_box_states[i, int(EgoBoxInternalIndex.y())])) 
+                                                       for i in range(len(agent_states))]))
+    return np.argmin(min_distance_to_ego)
+
+def get_critical_agent(agent_states: List[torch.Tensor], critical_agent_id: int) -> int:
+    """
+    Get the critical agent by critical_agent_id
+    :param agent_states: The agents in the scene. A list of [num_frames] tensors, each complying with the AgentInternalIndex schema
+    :param critical_agent_id: the critical agent id.
+    :return: the row number where the critical obstacle is located.
+    """
+    for j in range(agent_states[0].shape[0]):
+        if int(agent_states[0][j, int(AgentInternalIndex.track_token())].item()) == critical_agent_id:
+            return j
+    raise RuntimeError(f"no agent id is {critical_agent_id}.")
+
+def add_ego_box_states(agent_states: List[torch.Tensor], ego_box_states: torch.Tensor) -> List[torch.Tensor]:
+    """
+    Add ego_box_states into agent_states and place it first.
+    :param agent_states: The agents in the scene. A list of [num_frames] tensors, each complying with the AgentInternalIndex schema.
+    :param agent_states: ego states in the scene. Tensors complying with the EgoBoxInternalIndex schema.
+    :return: agents after addition in the same format as the input `agents` parameter.
+    """
+    for i in range(len(agent_states)):
+        _validate_agent_internal_shape(agent_states[i])
+
+        ego_state = torch.zeros((AgentInternalIndex.dim()), dtype=torch.float32)
+        ego_state[AgentInternalIndex.track_token()] = -1.0 # ensure no repetition
+        ego_state[AgentInternalIndex.vx()] = float(ego_box_states[i, EgoBoxInternalIndex.vx()].item())
+        ego_state[AgentInternalIndex.vy()] = float(ego_box_states[i, EgoBoxInternalIndex.vy()].item())
+        ego_state[AgentInternalIndex.heading()] = float(ego_box_states[i, EgoBoxInternalIndex.heading()].item())
+        ego_state[AgentInternalIndex.width()] = float(ego_box_states[i, EgoBoxInternalIndex.width()].item())
+        ego_state[AgentInternalIndex.length()] = float(ego_box_states[i, EgoBoxInternalIndex.length()].item())
+        ego_state[AgentInternalIndex.x()] = float(ego_box_states[i, EgoBoxInternalIndex.x()].item())
+        ego_state[AgentInternalIndex.y()] = float(ego_box_states[i, EgoBoxInternalIndex.y()].item())
+        agent_states[i] = torch.cat((ego_state.unsqueeze(0), agent_states[i]))
+    return agent_states
 
 def compute_yaw_rate_from_state_tensors(
     agent_states: List[torch.Tensor],
@@ -791,6 +955,25 @@ def sampled_past_ego_states_to_tensor(past_ego_states: List[EgoState]) -> torch.
 
     return output
 
+def sampled_ego_box_states_to_tensor(ego_states: List[EgoState]) -> torch.Tensor:
+    """
+    Converts a list of N ego states into a N x 9 tensor. The 9 fields are as defined in `EgoBoxInternalIndex`
+    :param ego_states: The ego states to convert.
+    :return: The converted tensor. It takes the center instead of the rear_axle
+    """
+    output = torch.zeros((len(ego_states), EgoBoxInternalIndex.dim()), dtype=torch.float32)
+    for i in range(0, len(ego_states), 1):
+        output[i, EgoBoxInternalIndex.x()] = ego_states[i].car_footprint.center.x
+        output[i, EgoBoxInternalIndex.y()] = ego_states[i].car_footprint.center.y
+        output[i, EgoBoxInternalIndex.heading()] = ego_states[i].car_footprint.center.heading
+        output[i, EgoBoxInternalIndex.vx()] = ego_states[i].dynamic_car_state.center_velocity_2d.x
+        output[i, EgoBoxInternalIndex.vy()] = ego_states[i].dynamic_car_state.center_velocity_2d.y
+        output[i, EgoBoxInternalIndex.ax()] = ego_states[i].dynamic_car_state.center_acceleration_2d.x
+        output[i, EgoBoxInternalIndex.ay()] = ego_states[i].dynamic_car_state.center_acceleration_2d.y
+        output[i, EgoBoxInternalIndex.width()] = ego_states[i].car_footprint.width
+        output[i, EgoBoxInternalIndex.length()] = ego_states[i].car_footprint.length
+
+    return output
 
 def sampled_past_timestamps_to_tensor(past_time_stamps: List[TimePoint]) -> torch.Tensor:
     """
@@ -814,7 +997,7 @@ def _extract_agent_tensor(
     :object_type: TrackedObjectType to filter agents by.
     :return: The generated tensor and the updated track_token_ids dict.
     """
-    agents = tracked_objects.get_tracked_objects_of_type(object_type)
+    agents = tracked_objects.get_tracked_objects_of_type(object_type) + tracked_objects.get_tracked_objects_of_type(TrackedObjectType.CRITICAL_AGENT)
     output = torch.zeros((len(agents), AgentInternalIndex.dim()), dtype=torch.float32)
     max_agent_id = len(track_token_ids)
 
@@ -853,6 +1036,22 @@ def sampled_tracked_objects_to_tensor_list(
         output.append(tensorized)
     return output
 
+def sampled_tracked_objects_to_tensor_list_with_track_token_dict(
+    tracked_objects: List[TrackedObjects], object_type: TrackedObjectType = TrackedObjectType.VEHICLE
+) -> Tuple[List[torch.Tensor], Dict[str, int]]:
+    """
+    Tensorizes the agents features from the provided detections.
+    For N detections, output is a list of length N, with each tensor as described in `_extract_agent_tensor()`.
+    :param tracked_objects: The tracked objects to tensorize.
+    :param object_type: TrackedObjectType to filter agents by.
+    :return: The tensorized objects and dictionary theta maps from id to track token.
+    """
+    output: List[torch.Tensor] = []
+    track_token_ids: Dict[str, int] = {}
+    for i in range(len(tracked_objects)):
+        tensorized, track_token_ids = _extract_agent_tensor(tracked_objects[i], track_token_ids, object_type)
+        output.append(tensorized)
+    return (output, track_token_ids)
 
 def pack_agents_tensor(padded_agents_tensors: List[torch.Tensor], yaw_rates: torch.Tensor) -> torch.Tensor:
     """
@@ -887,3 +1086,66 @@ def pack_agents_tensor(padded_agents_tensors: List[torch.Tensor], yaw_rates: tor
         ].squeeze()
 
     return agents_tensor
+
+def pack_agents_tensor_and_separate_cirtical_agent(
+    agents_tensors: List[torch.Tensor],
+    yaw_rates: torch.Tensor,
+    critical_agent_row: int
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Combines the local agents states and the computed yaw rates into the final output feature tensor. Then separate the critical agent from the agents.
+    :param agents_tensors: The agent states for each timestamp.
+        Each tensor is of shape <num_agents, len(AgentInternalIndex)> and conforms to the AgentInternalIndex schema.
+    :param yaw_rates: The computed yaw rates. The tensor is of shape <num_timestamps, agent>
+    :param critical_agent_row: Specify which row the critical agent is in the agents_tensors.
+    :return: critical agent feature, a tensor of shape [timestamp, len(AgentsFeatureIndex)] conforming to the AgentFeatureIndex Schema, and
+     surrounding_agents feature, a tensor of shape [timestamp, num_agents, len(AgentsFeatureIndex)] conforming to the AgentFeatureIndex Schema.
+    """
+    if yaw_rates.shape != (len(agents_tensors), agents_tensors[0].shape[0]):
+        raise ValueError(f"Unexpected yaw_rates tensor shape: {yaw_rates.shape}")
+
+    critical_agent_tensor = torch.zeros(len(agents_tensors), AgentFeatureIndex.dim())
+    num_agents = agents_tensors[0].shape[0]
+    surrounding_agents_tensor = torch.zeros((len(agents_tensors), num_agents - 1, AgentFeatureIndex.dim()))
+    surrounding_mask = torch.ones(num_agents, dtype=torch.bool)
+    surrounding_mask[critical_agent_row] = False
+
+    for i in range(len(agents_tensors)):
+        _validate_agent_internal_shape(agents_tensors[i])
+        critical_agent_tensor[i, AgentFeatureIndex.x()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.x()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.y()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.y()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.heading()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.heading()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.vx()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.vx()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.vy()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.vy()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.yaw_rate()] =  yaw_rates[i, critical_agent_row].item()
+        critical_agent_tensor[i, AgentFeatureIndex.width()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.width()].item()
+        critical_agent_tensor[i, AgentFeatureIndex.length()] =  agents_tensors[i][critical_agent_row, AgentInternalIndex.length()].item()
+
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.x()] = agents_tensors[i][:, AgentInternalIndex.x()].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.y()] = agents_tensors[i][:, AgentInternalIndex.y()].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.heading()] = agents_tensors[i][
+            :, AgentInternalIndex.heading()
+        ].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.vx()] = agents_tensors[i][:, AgentInternalIndex.vx()].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.vy()] = agents_tensors[i][:, AgentInternalIndex.vy()].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.yaw_rate()] = yaw_rates[i, :].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.width()] = agents_tensors[i][
+            :, AgentInternalIndex.width()
+        ].squeeze()[surrounding_mask]
+        surrounding_agents_tensor[i, :, AgentFeatureIndex.length()] = agents_tensors[i][
+            :, AgentInternalIndex.length()
+        ].squeeze()[surrounding_mask]
+
+    return (critical_agent_tensor, surrounding_agents_tensor)
+
+def convert_agent_state_to_SE2(agent_state: torch.Tensor) -> StateSE2:
+    """
+    Convert agent state to StateSE2
+    :param agent_state: The agent state to convert, in the AgentInternalIndex schema.
+    :return: converted state.
+    """
+    return StateSE2(
+        float(agent_state[AgentInternalIndex.x()].item()),
+        float(agent_state[AgentInternalIndex.y()].item()),
+        float(agent_state[AgentInternalIndex.heading()].item())
+    )

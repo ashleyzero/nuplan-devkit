@@ -36,6 +36,7 @@ class PlannerInput:
     iteration: SimulationIteration  # Iteration and time in a simulation progress
     history: SimulationHistoryBuffer  # Rolling buffer containing past observations and states.
     traffic_light_data: Optional[List[TrafficLightStatusData]] = None  # The traffic light status data
+    critical_agent_track_token: Optional[str] = None
 
 
 class AbstractPlanner(abc.ABC):

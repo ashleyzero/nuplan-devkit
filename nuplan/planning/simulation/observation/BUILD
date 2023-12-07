@@ -103,3 +103,28 @@ py_library(
         "//nuplan/planning/training/preprocessing/features:agents_trajectories",
     ],
 )
+
+py_library(
+    name = "critical_diffusion_agent",
+    srcs = ["critical_diffusion_agent.py"],
+    deps = [
+        "//nuplan/common/actor_state:tracked_objects",
+        "//nuplan/planning/scenario_builder:abstract_scenario",
+        "//nuplan/planning/simulation/history:simulation_history_buffer",
+        "//nuplan/planning/simulation/observation:abstract_observation",
+        "//nuplan/planning/simulation/observation:observation_type",
+        "//nuplan/planning/simulation/planner:abstract_planner",
+        "//nuplan/planning/simulation/planner/ml_planner:model_loader",
+        "//nuplan/planning/simulation/simulation_time_controller:simulation_iteration",
+        "//nuplan/planning/training/modeling:torch_module_wrapper",
+        "//nuplan/planning/training/modeling:types",
+        "//nuplan/planning/training/preprocessing/utils:agents_preprocessing",
+
+        "//nuplan/planning/training/preprocessing/features:trajectory",
+        "//nuplan/planning/training/preprocessing/features:critical_agent",
+        "//nuplan/common/actor_state:agent",
+        "//nuplan/common/actor_state:oriented_box",
+        "//nuplan/common/actor_state:state_representation",
+        "//nuplan/common/geometry:convert",
+    ],
+)

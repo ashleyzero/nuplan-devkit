@@ -78,12 +78,22 @@ class LightningModuleWrapper(pl.LightningModule):
         """
         features, targets, scenarios = batch
 
-        predictions = self.forward(features)
-        objectives = self._compute_objectives(predictions, targets, scenarios)
-        metrics = self._compute_metrics(predictions, targets)
-        loss = aggregate_objectives(objectives, agg_mode=self.objective_aggregate_mode)
+        # predictions = self.forward(features)
+        # objectives = self._compute_objectives(predictions, targets, scenarios)
+        # metrics = self._compute_metrics(predictions, targets)
+        # loss = aggregate_objectives(objectives, agg_mode=self.objective_aggregate_mode)
 
-        self._log_step(loss, objectives, metrics, prefix)
+        if self.model.training:
+            loss = self.model.get_loss(features)
+            if loss is not None:
+                self.log(f'loss/{prefix}_training_MSE', loss)
+        else:
+            metrics = self.model.get_metrics(features)
+            loss = None
+            if metrics is not None:
+                for key, value in metrics.items():
+                    self.log(f'metrics/{prefix}_{key}', value)
+                self.log(f'loss/{prefix}_loss', metrics['avg_displacement_error'])
 
         return loss
 

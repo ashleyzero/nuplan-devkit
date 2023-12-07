@@ -16,6 +16,7 @@ from nuplan.planning.script.builders.simulation_callback_builder import (
 )
 from nuplan.planning.script.utils import run_runners, set_default_path, set_up_common_builder
 from nuplan.planning.simulation.planner.abstract_planner import AbstractPlanner
+# from nuplan.planning.simulation.observation.abstract_observation import AbstractObservation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
