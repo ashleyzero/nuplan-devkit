@@ -2,4 +2,6 @@ _target_: nuplan.planning.simulation.observation.critical_diffusion_agent.Critic
 _convert_: 'all'
 
 model_config: ${model}
-checkpoint_path: ${oc.env:NUPLAN_EXP_ROOT}/exp/diffusion_experiment/diffusion_model/2023.12.26.10.56.13/checkpoints/epoch=199.ckpt  # Path to trained model checkpoint
+# checkpoint_path: ${oc.env:NUPLAN_EXP_ROOT}/exp/diffusion_experiment/diffusion_model/2023.12.26.10.56.13/checkpoints/epoch=199.ckpt  # Path to trained model checkpoint(predict noise)
+# checkpoint_path: ${oc.env:NUPLAN_EXP_ROOT}/exp/diffusion_experiment/diffusion_model/2024.01.08.23.26.09/checkpoints/epoch=199.ckpt  # Path to trained model checkpoint(predict x0)
+checkpoint_path: ${oc.env:NUPLAN_EXP_ROOT}/exp/diffusion_experiment/diffusion_model/2024.01.10.09.29.55/checkpoints/epoch=89.ckpt  # Path to trained model checkpoint(predict x0 + constraints)

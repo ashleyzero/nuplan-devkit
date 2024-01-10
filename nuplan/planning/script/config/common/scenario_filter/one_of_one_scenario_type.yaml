@@ -13,11 +13,11 @@ scenario_types:                     # List of scenario types to include
   # - traversing_narrow_lane
   # - waiting_for_pedestrian_to_cross
   # - starting_left_turn
-  - starting_high_speed_turn
+  # - starting_high_speed_turn
   # - starting_unprotected_cross_turn
   # - starting_protected_noncross_turn
   # - on_pickup_dropoff
-  # - traversing_traffic_light_intersection
+  - traversing_traffic_light_intersection
 scenario_tokens: null               # List of scenario tokens to include
 
 log_names: null                     # Filter scenarios by log names

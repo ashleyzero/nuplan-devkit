@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 import math
-
+from nuplan.planning.training.modeling.models.diffusion_dynamics import DynamicsIntegrateOutput
 
 class VarianceSchedule(nn.Module):
 
@@ -132,18 +132,61 @@ class SampleSelector():
     def __init__(self, num_samples: int):
         self.num_samples = num_samples
     
-    def select_best(self, samples: List[Tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor]], route_coords: List[torch.tensor]) -> List[int]:
+    def select_best(self, samples: List[DynamicsIntegrateOutput], route_coords: List[torch.tensor]) -> List[int]:
         assert len(samples) == self.num_samples
-        batch_size = samples[0][0].shape[0]
+        batch_size = samples[0].poses.shape[0]
         best_indices = []
         for i in range(batch_size):
-            scores = torch.zeros(self.num_samples).to(samples[0][0].device)
+            scores = torch.zeros(self.num_samples).to(samples[0].poses.device)
             for j in range(self.num_samples):
-                poses, velocities, accelerations, jerks = samples[j]
+                # poses, velocities, accelerations, jerks = samples[j]
                 if route_coords[i].numel() > 0:
-                    min_distance_to_route = torch.norm(route_coords[i] - poses[i, 7, :2], dim=-1).min().item()
+                    min_distance_to_route = torch.norm(route_coords[i] - samples[j].poses[i, 7, :2], dim=-1).min().item()
                     scores[j] -= max(min_distance_to_route - 2.0, 0.0)
-                scores[j] -= jerks[i, :, 1].abs().sum()
+                scores[j] -= samples[j].jerks[i, :, 0].abs().sum()
             # print(scores)
             best_indices.append(torch.argmax(scores).item())
         return best_indices
+
+class Constraints():
+    def __init__(
+        self,
+        max_distance_to_route: float,
+        max_accleration: float,
+        max_angular_acceleration: float
+    ):
+        self.max_distance_to_route = max_distance_to_route
+        self.max_accleration = max_accleration
+        self.max_angular_acceleration = max_angular_acceleration
+
+    def compute_g_route(self, poses: torch.tensor, route_coords: List[torch.tensor]) -> torch.tensor:
+        assert poses.shape[0] == len(route_coords)
+        batch_size = poses.shape[0]
+        g_route = torch.zeros(batch_size, poses.shape[1]).to(poses.device)
+        for i in range(batch_size):
+            if route_coords[i].numel() > 0:
+                g_route[i] = (torch.norm(
+                    route_coords[i].unsqueeze(1) - poses[i, :, :2].unsqueeze(0), dim=-1
+                ).min(dim=0)[0] - self.max_distance_to_route).clamp(min=0.0)
+        return g_route
+    
+    def compute_g_kinematic(self, accelerations: torch.tensor) -> torch.tensor:
+        assert accelerations.shape[-1] == 2, f"Got accelerations dim: {accelerations.shape[-1]} , expected 2"
+        g_kinematic = (accelerations[..., 0].abs() - self.max_accleration).clamp(min=0.0) + \
+            (accelerations[..., 1].abs() - self.max_angular_acceleration).clamp(min=0.0)
+        return g_kinematic
+    
+    def compute_g(
+        self, poses: torch.tensor, accelerations: torch.tensor, route_coords: List[torch.tensor]
+    ) -> torch.tensor:
+        return self.compute_g_route(poses, route_coords) + self.compute_g_kinematic(accelerations)
+
+def compute_d(poses1: torch.tensor, poses2: torch.tensor) -> torch.tensor:
+    assert poses1.shape == poses2.shape
+    assert poses1.shape[-1] == 3, f"Got poese dim: {poses1.shape[-1]} , expected 3"
+    return torch.norm(torch.stack([
+        poses1[..., 0] - poses2[..., 0],
+        poses1[..., 1] - poses2[..., 1],
+        torch.cos(poses1[..., 2]) - torch.cos(poses2[..., 2]),
+        torch.sin(poses1[..., 2]) - torch.sin(poses2[..., 2]),
+    ], dim=-1), dim=-1)

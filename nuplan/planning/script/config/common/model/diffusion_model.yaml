@@ -14,6 +14,11 @@ feature_dim: 128
 sampling_method: 'ddpm' # 'ddpm' or 'ddim'
 sampling_stride: 20 # The parameter within DDIM, in the context of DDPM is set to 1
 
+correction: true
+num_corrections: 5
+
+guidance: false
+
 # Parameters for variance schedule
 variance_schedule:
   _target_: nuplan.planning.training.modeling.models.diffusion_utils.VarianceSchedule
@@ -34,6 +39,14 @@ sample_selector:
   _target_: nuplan.planning.training.modeling.models.diffusion_utils.SampleSelector
   _convert_: 'all'
   num_samples: 20
+
+# Parameters for constraints
+constraints: 
+  _target_: nuplan.planning.training.modeling.models.diffusion_utils.Constraints
+  _convert_: 'all'
+  max_distance_to_route: 5.0
+  max_accleration: 5.0
+  max_angular_acceleration: 1.0
 
 # VectorMapFeatureBuilder
 vector_map_feature_radius: 50    # [m] The query radius scope relative to the current ego-pose.
